@@ -1,0 +1,39 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: blazor-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: SchoolDB
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - blazor-network
+
+  blazor-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blazor-mongodb-app
+    restart: always
+    ports:
+      - "8081:80"
+    environment:
+      - MONGODB_CONNECTION_STRING=mongodb://mongodb:27017/
+      - MONGODB_DATABASE_NAME=SchoolDB
+      - MONGODB_COLLECTION_NAME=Students
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80
+    depends_on:
+      - mongodb
+    networks:
+      - blazor-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  blazor-network:
+    driver: bridge

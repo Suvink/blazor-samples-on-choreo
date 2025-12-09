@@ -9,6 +9,14 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("BlazorWebAppMoviesContext") 
     ?? throw new InvalidOperationException("Connection string 'BlazorWebAppMoviesContext' not found.");
 
+// Log connection string for debugging (mask password)
+var maskedConnectionString = connectionString.Contains("Password=") 
+    ? System.Text.RegularExpressions.Regex.Replace(connectionString, @"Password=([^;]+)", "Password=***")
+    : connectionString;
+Console.WriteLine($"=== DATABASE CONFIGURATION ===");
+Console.WriteLine($"Connection String: {maskedConnectionString}");
+Console.WriteLine($"================================");
+
 builder.Services.AddDbContextFactory<BlazorWebAppMoviesContext>(options =>
     options.UseNpgsql(connectionString));
 
