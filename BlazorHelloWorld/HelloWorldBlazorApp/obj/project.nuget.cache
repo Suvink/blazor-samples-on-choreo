@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "zLPYSymN8ps=",
+  "success": true,
+  "projectFilePath": "/Users/Suvin/Desktop/choreo-appdev/Klingelnberg/HelloWorldBlazorApp/HelloWorldBlazorApp.csproj",
+  "expectedPackageFiles": [
+    "/Users/Suvin/.nuget/packages/microsoft.aspnetcore.app.internal.assets/10.0.0/microsoft.aspnetcore.app.internal.assets.10.0.0.nupkg.sha512"
+  ],
+  "logs": []
+}
