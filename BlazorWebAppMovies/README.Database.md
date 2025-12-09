@@ -1,72 +1,34 @@
-# BlazorWebAppMovies - Multi-Database Support
+# BlazorWebAppMovies - PostgreSQL Database
 
-This application supports **SQL Server** and **PostgreSQL** databases through Entity Framework Core.
+This application uses **PostgreSQL** database through Entity Framework Core.
 
-## 🗄️ Database Options
-
-### Option 1: PostgreSQL (Recommended for All Platforms)
+## 🗄️ Database Setup
 
 PostgreSQL is open-source, feature-rich, and works great on all platforms including ARM64 Macs.
 
 **Start with PostgreSQL:**
 ```bash
-docker-compose -f docker-compose.postgres.yml up -d
+docker compose up -d
 ```
 
-**Connection String:**
+**Connection String Format:**
 ```
 Host=postgres;Database=BlazorWebAppMovies;Username=postgres;Password=YourStrong@Passw0rd
 ```
 
-**Environment Variable:**
-```bash
-DATABASE_PROVIDER=PostgreSQL
-```
-
-### Option 2: SQL Server / Azure SQL Edge
-
-Azure SQL Edge is used for ARM64 compatibility (Apple Silicon Macs). For other platforms, standard SQL Server can be used.
-
-**Start with SQL Server:**
-```bash
-docker-compose up -d
-```
-
-**Connection String:**
-```
-Server=sqlserver;Database=BlazorWebAppMovies;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;MultipleActiveResultSets=true
-```
-
-**Environment Variable:**
-```bash
-DATABASE_PROVIDER=SqlServer
-```
-
 ## 🚀 Quick Start
 
-### 1. Choose Your Database
-
-Pick one of the docker-compose files based on your preference:
-- `docker-compose.yml` - SQL Server/Azure SQL Edge (default)
-- `docker-compose.postgres.yml` - PostgreSQL
-
-### 2. Start the Application
+### 1. Start the Application
 
 ```bash
-# PostgreSQL
-docker-compose -f docker-compose.postgres.yml up -d
-
-# SQL Server
-docker-compose up -d
+docker compose up -d
 ```
 
-### 3. Access the Application
+### 2. Access the Application
 
 Open your browser to: **http://localhost:8080**
 
 ## 📋 Database Schema Management
-
-### PostgreSQL
 
 PostgreSQL uses `EnsureCreated()` which automatically creates the database schema based on your models. The application will:
 1. Connect to PostgreSQL
@@ -76,28 +38,14 @@ PostgreSQL uses `EnsureCreated()` which automatically creates the database schem
 
 **No manual migrations needed!**
 
-### SQL Server
-
-SQL Server uses Entity Framework migrations. The existing migrations in the `Migrations` folder will be applied automatically when the container starts.
-
-# Update database
-dotnet ef database update --context BlazorWebAppMoviesContext
-```
-
 ## 🔧 Configuration
 
-The database provider is configured via the `DATABASE_PROVIDER` environment variable:
+The database connection is configured via the `ConnectionStrings__BlazorWebAppMoviesContext` environment variable:
 
 ```yaml
 environment:
-  - DATABASE_PROVIDER=PostgreSQL  # Options: SqlServer, PostgreSQL
-  - ConnectionStrings__BlazorWebAppMoviesContext=<your-connection-string>
+  - ConnectionStrings__BlazorWebAppMoviesContext=Host=postgres;Database=BlazorWebAppMovies;Username=postgres;Password=YourStrong@Passw0rd
 ```
-
-## 📊 Comparing Database Options
-
-| Feature | SQL Server | PostgreSQL |
-|---------|-----------|-----------|
 | **License** | Commercial | Open Source |
 | **ARM64 Support** | Azure SQL Edge | ✅ Native |
 | **JSON Support** | ✅ | ✅ Excellent |
@@ -149,35 +97,39 @@ Update these in your docker-compose file or .env file:
 
 ### Application won't start
 1. Check if the database container is healthy:
+
+## 🔍 Troubleshooting
+
+### App won't start
+1. Check database health:
    ```bash
-   docker-compose ps
+   docker compose ps
    ```
 
 2. View application logs:
    ```bash
-   docker-compose logs blazor-app
+   docker compose logs blazor-app
    ```
 
 ### Database connection errors
-1. Ensure the database service is running and healthy
-2. Verify the connection string matches your database
-3. Check the `DATABASE_PROVIDER` environment variable is set correctly
+1. Ensure the PostgreSQL service is running and healthy
+2. Verify the connection string is correct
+3. Check PostgreSQL logs: `docker compose logs postgres`
 
 ### Reset everything
 ```bash
 # Stop all containers and remove volumes
-docker-compose down -v
+docker compose down -v
 
 # Remove all images
-docker-compose down --rmi all
+docker compose down --rmi all
 
 # Start fresh
-docker-compose up --build -d
+docker compose up --build -d
 ```
 
 ## 📦 NuGet Packages Used
 
-- `Microsoft.EntityFrameworkCore.SqlServer` - SQL Server provider
 - `Npgsql.EntityFrameworkCore.PostgreSQL` - PostgreSQL provider
 - `Microsoft.EntityFrameworkCore.Tools` - EF Core tooling
 
@@ -193,19 +145,13 @@ For production deployments:
 
 ### PostgreSQL Production Connection String
 ```
-Host=your-host;Database=BlazorWebAppMovies;Username=app_user;Password=<secret>;SSL Mode=Require;Trust Server Certificate=true
-```
-
-### SQL Server Production Connection String
-```
-Server=your-host;Database=BlazorWebAppMovies;User Id=app_user;Password=<secret>;Encrypt=True;TrustServerCertificate=False
+Host=your-host;Database=BlazorWebAppMovies;Username=app_user;Password=<secret>;SslMode=Require;Trust Server Certificate=true
 ```
 
 ## 📚 Additional Resources
 
 - [Entity Framework Core Documentation](https://docs.microsoft.com/en-us/ef/core/)
 - [PostgreSQL EF Core Provider](https://www.npgsql.org/efcore/)
-- [SQL Server EF Core Provider](https://docs.microsoft.com/en-us/ef/core/providers/sql-server/)
 
 ---
 

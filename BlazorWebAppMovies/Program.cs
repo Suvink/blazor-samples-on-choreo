@@ -5,25 +5,12 @@ using BlazorWebAppMovies.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure database provider based on environment variable or configuration
-var databaseProvider = builder.Configuration["DATABASE_PROVIDER"] ?? "SqlServer";
+// Configure PostgreSQL database connection
 var connectionString = builder.Configuration.GetConnectionString("BlazorWebAppMoviesContext") 
     ?? throw new InvalidOperationException("Connection string 'BlazorWebAppMoviesContext' not found.");
 
 builder.Services.AddDbContextFactory<BlazorWebAppMoviesContext>(options =>
-{
-    switch (databaseProvider.ToLower())
-    {
-        case "postgresql":
-        case "postgres":
-            options.UseNpgsql(connectionString);
-            break;
-        case "sqlserver":
-        default:
-            options.UseSqlServer(connectionString);
-            break;
-    }
-});
+    options.UseNpgsql(connectionString));
 
 builder.Services.AddQuickGridEntityFrameworkAdapter();
 
@@ -52,19 +39,11 @@ while (retryCount < maxRetries)
             
             using (var context = contextFactory.CreateDbContext())
             {
-                logger.LogInformation("Attempting to connect to database and apply schema...");
+                logger.LogInformation("Attempting to connect to PostgreSQL database and apply migrations...");
                 
-                // Use EnsureCreated for PostgreSQL, Migrate for SQL Server
-                if (databaseProvider.ToLower() is "postgresql" or "postgres")
-                {
-                    logger.LogInformation("Using EnsureCreated for PostgreSQL...");
-                    context.Database.EnsureCreated();
-                }
-                else
-                {
-                    logger.LogInformation("Applying migrations for SQL Server...");
-                    context.Database.Migrate();
-                }
+                // Apply migrations
+                logger.LogInformation("Applying database migrations...");
+                context.Database.Migrate();
                 
                 logger.LogInformation("Database schema ready.");
             }

@@ -1,17 +1,17 @@
 # BlazorWebAppMovies - Docker Deployment
 
-This guide explains how to deploy the BlazorWebAppMovies application using Docker and Docker Compose.
+This guide explains how to deploy the BlazorWebAppMovies application using Docker and Docker Compose with PostgreSQL.
 
 ## Files Overview
 
 - **Dockerfile**: Multi-stage build configuration for the Blazor application
-- **docker-compose.yml**: Orchestrates both the Blazor app and Azure SQL Edge database
+- **docker-compose.yml**: Orchestrates both the Blazor app and PostgreSQL database
 - **.env.sample**: Sample environment variables configuration file
 - **.dockerignore**: Specifies files to exclude from the Docker build context
 
 ## Prerequisites
 
-- Docker Desktop installed (for macOS with Apple Silicon/ARM64)
+- Docker Desktop installed
 - Docker Compose installed (usually included with Docker Desktop)
 
 ## Quick Start
@@ -35,9 +35,9 @@ docker compose up -d
 ```
 
 This will:
-- Start Azure SQL Edge database (compatible with ARM64/Apple Silicon)
+- Start PostgreSQL 16 database
 - Build and start the Blazor application
-- Apply database migrations automatically
+- Create database schema automatically
 - Seed initial data
 - Expose the application on `http://localhost:8080`
 
@@ -52,7 +52,7 @@ docker compose logs -f blazor-app
 To view database logs:
 
 ```bash
-docker compose logs -f sqlserver
+docker compose logs -f postgres
 ```
 
 ### 4. Stop the Application
@@ -90,8 +90,7 @@ docker compose ps
 ### Access Database
 
 ```bash
-docker exec -it blazorwebappmovies-sqlserver-1 /opt/mssql-tools/bin/sqlcmd \
-  -S localhost -U sa -P YourStrong@Passw0rd
+docker exec -it blazorwebappmovies-postgres-1 psql -U postgres -d BlazorWebAppMovies
 ```
 
 ## Production Deployment
@@ -105,7 +104,7 @@ docker build -t blazor-movies-app:latest .
 # Run with environment variables
 docker run -d \
   -p 8080:8080 \
-  -e ConnectionStrings__BlazorWebAppMoviesContext="Server=your-sql-server;Database=BlazorWebAppMovies;User=sa;Password=your-password" \
+  -e ConnectionStrings__BlazorWebAppMoviesContext="Host=your-postgres-host;Database=BlazorWebAppMovies;Username=postgres;Password=your-password" \
   --name blazor-app \
   blazor-movies-app:latest
 ```
@@ -118,26 +117,17 @@ Key configuration options (set in `.env` or docker-compose.yml):
 
 - `ASPNETCORE_ENVIRONMENT`: Set to `Production` for production deployment
 - `ASPNETCORE_URLS`: Application URL binding (default: `http://+:8080`)
-- `ConnectionStrings__BlazorWebAppMoviesContext`: Database connection string
+- `ConnectionStrings__BlazorWebAppMoviesContext`: PostgreSQL connection string
 
 ### Database
 
-The application uses **Azure SQL Edge** which is compatible with ARM64 architecture (Apple Silicon Macs). For Intel-based systems or production, you can switch to SQL Server 2022 in `docker-compose.yml`:
-
-```yaml
-sqlserver:
-  image: mcr.microsoft.com/mssql/server:2022-latest
-  environment:
-    - ACCEPT_EULA=Y
-    - SA_PASSWORD=YourStrong@Passw0rd
-    - MSSQL_PID=Developer
-```
+The application uses **PostgreSQL 16** (Alpine variant for smaller image size). The database is configured with health checks to ensure it's ready before the application starts.
 
 ## Troubleshooting
 
 ### Application won't start
 
-1. Check if SQL Server is healthy:
+1. Check if PostgreSQL is healthy:
    ```bash
    docker compose ps
    ```
@@ -151,11 +141,11 @@ sqlserver:
 
 The application includes automatic retry logic (10 attempts with 3-second delays). If connections still fail:
 
-1. Ensure SQL Server container is running and healthy
+1. Ensure PostgreSQL container is running and healthy
 2. Check the connection string in `.env` or `docker-compose.yml`
-3. Verify SQL Server is accepting connections:
+3. Verify PostgreSQL is accepting connections:
    ```bash
-   docker compose logs sqlserver
+   docker compose logs postgres
    ```
 
 ### Reset database
@@ -164,7 +154,7 @@ To start fresh with a clean database:
 
 ```bash
 docker compose down
-docker volume rm blazorwebappmovies_sqlserver-data
+docker volume rm blazorwebappmovies_postgres-data
 docker compose up -d
 ```
 
@@ -188,15 +178,15 @@ The Dockerfile uses a multi-stage build process:
 
 - **8080**: HTTP (Application)
 - **8081**: HTTPS (if configured)
-- **1433**: SQL Server (Database)
+- **5432**: PostgreSQL (Database)
 
 ## Data Persistence
 
-Database data is persisted in a Docker volume named `blazorwebappmovies_sqlserver-data`.
+Database data is persisted in a Docker volume named `blazorwebappmovies_postgres-data`.
 
 ## Health Checks
 
-The SQL Server service includes a health check that ensures the database is ready before the application starts.
+The PostgreSQL service includes a health check that ensures the database is ready before the application starts.
 
 ## Support
 

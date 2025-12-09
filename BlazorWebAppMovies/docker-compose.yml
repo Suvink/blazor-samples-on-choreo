@@ -11,31 +11,31 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - ConnectionStrings__BlazorWebAppMoviesContext=Server=sqlserver;Database=BlazorWebAppMovies;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;MultipleActiveResultSets=true
+      - ConnectionStrings__BlazorWebAppMoviesContext=Host=postgres;Database=BlazorWebAppMovies;Username=postgres;Password=YourStrong@Passw0rd
     depends_on:
-      sqlserver:
+      postgres:
         condition: service_healthy
     networks:
       - blazor-network
     restart: on-failure
 
-  sqlserver:
-    image: mcr.microsoft.com/azure-sql-edge:latest
-    platform: linux/arm64
+  postgres:
+    image: postgres:16-alpine
     environment:
-      - ACCEPT_EULA=1
-      - MSSQL_SA_PASSWORD=YourStrong@Passw0rd
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=YourStrong@Passw0rd
+      - POSTGRES_DB=BlazorWebAppMovies
     ports:
-      - "1433:1433"
+      - "5432:5432"
     volumes:
-      - sqlserver-data:/var/opt/mssql
+      - postgres-data:/var/lib/postgresql/data
     networks:
       - blazor-network
     healthcheck:
-      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -Q "SELECT 1" || exit 1
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 5
       start_period: 10s
 
 networks:
@@ -43,4 +43,4 @@ networks:
     driver: bridge
 
 volumes:
-  sqlserver-data:
+  postgres-data:

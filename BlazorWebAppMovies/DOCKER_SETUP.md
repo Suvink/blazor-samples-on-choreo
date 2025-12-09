@@ -5,25 +5,15 @@
 This Dockerized setup includes:
 
 - **Blazor Server Application** (.NET 10.0)
-- **Database Support**: SQL Server (Azure SQL Edge) and PostgreSQL
+- **PostgreSQL Database** (Version 16)
 - **Automatic Database Setup**: Schema creation and data seeding
 - **Health Checks**: Ensures database is ready before app starts
 - **Non-root Security**: Application runs as user `choreouser` (UID 10014)
 
 ## 🚀 Quick Start
 
-### Option 1: PostgreSQL (Recommended)
-
 ```bash
-docker-compose -f docker-compose.postgres.yml up -d
-```
-
-**Access the app**: http://localhost:8080
-
-### Option 2: SQL Server / Azure SQL Edge
-
-```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 **Access the app**: http://localhost:8080
@@ -33,8 +23,7 @@ docker-compose up -d
 ```
 BlazorWebAppMovies/
 ├── Dockerfile                      # Multi-stage build for .NET app
-├── docker-compose.yml              # SQL Server/Azure SQL Edge setup
-├── docker-compose.postgres.yml     # PostgreSQL setup
+├── docker-compose.yml              # PostgreSQL setup
 ├── .dockerignore                   # Files excluded from Docker build
 ├── .env.sample                     # Environment variable template
 └── README.Database.md             # Detailed database documentation
@@ -50,9 +39,8 @@ Create a `.env` file from `.env.sample`:
 cp .env.sample .env
 ```
 
-Key variables:
-- `DATABASE_PROVIDER`: `SqlServer` or `PostgreSQL`
-- `ConnectionStrings__BlazorWebAppMoviesContext`: Database connection string
+Key variable:
+- `ConnectionStrings__BlazorWebAppMoviesContext`: PostgreSQL connection string
 
 ### Default Credentials
 
@@ -63,78 +51,48 @@ Key variables:
 - Password: `YourStrong@Passw0rd`
 - Port: `5432`
 
-**SQL Server:**
-- Username: `sa`
-- Password: `YourStrong@Passw0rd`
-- Port: `1433`
-
 ## 🐳 Common Docker Commands
 
 ### View Logs
 ```bash
 # All services
-docker-compose -f docker-compose.postgres.yml logs -f
+docker compose logs -f
 
 # Just the app
-docker-compose -f docker-compose.postgres.yml logs -f blazor-app
+docker compose logs -f blazor-app
 
 # Just the database
-docker-compose -f docker-compose.postgres.yml logs -f postgres
+docker compose logs -f postgres
 ```
 
 ### Check Status
 ```bash
-docker-compose -f docker-compose.postgres.yml ps
+docker compose ps
 ```
 
 ### Stop Everything
 ```bash
-docker-compose -f docker-compose.postgres.yml down
+docker compose down
 ```
 
 ### Clean Restart (Delete Data)
 ```bash
-docker-compose -f docker-compose.postgres.yml down -v
-docker-compose -f docker-compose.postgres.yml up -d
+docker compose down -v
+docker compose up -d
 ```
 
 ### Rebuild After Code Changes
 ```bash
-docker-compose -f docker-compose.postgres.yml up --build -d
-```
-
-## 🎯 Database Switching
-
-### From SQL Server to PostgreSQL
-
-```bash
-# Stop SQL Server
-docker-compose down
-
-# Start PostgreSQL
-docker-compose -f docker-compose.postgres.yml up -d
-```
-
-### From PostgreSQL to SQL Server
-
-```bash
-# Stop PostgreSQL
-docker-compose -f docker-compose.postgres.yml down
-
-# Start SQL Server
-docker-compose up -d
+docker compose up --build -d
 ```
 
 ## 🛠️ How It Works
 
 ### Database Initialization
 
-1. **SQL Server**: Uses Entity Framework migrations from the `Migrations/` folder
-2. **PostgreSQL**: Uses `EnsureCreated()` to automatically generate schema from models
-
-Both approaches:
+PostgreSQL uses `EnsureCreated()` to automatically:
 - Create the database if it doesn't exist
-- Apply schema changes
+- Generate schema from Entity Framework models
 - Seed initial movie data
 - Include retry logic (10 attempts with 3-second delays)
 
@@ -168,32 +126,26 @@ Docker Compose includes health checks to ensure:
 
 1. Check database health:
    ```bash
-   docker-compose -f docker-compose.postgres.yml ps
+   docker compose ps
    ```
 
 2. View detailed logs:
    ```bash
-   docker-compose -f docker-compose.postgres.yml logs
+   docker compose logs
    ```
 
 ### Connection errors
 
-- Verify `DATABASE_PROVIDER` matches your docker-compose file
-- Check connection string in docker-compose file
+- Check connection string in docker-compose.yml
 - Ensure database container is healthy
 
 ### Port already in use
 
-Change the port mapping in docker-compose file:
+Change the port mapping in docker-compose.yml:
 ```yaml
 ports:
   - "8081:8080"  # Use 8081 instead of 8080
 ```
-
-### ARM64 Mac Issues
-
-- **PostgreSQL**: ✅ Works natively
-- **SQL Server**: ✅ Uses Azure SQL Edge (ARM64 compatible)
 
 ## 📦 What Gets Built
 
