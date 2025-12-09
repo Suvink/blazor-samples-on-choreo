@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  blazor-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - DATABASE_PROVIDER=PostgreSQL
+      - ConnectionStrings__BlazorWebAppMoviesContext=Host=postgres;Database=BlazorWebAppMovies;Username=postgres;Password=YourStrong@Passw0rd
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - blazor-network
+    restart: on-failure
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=YourStrong@Passw0rd
+      - POSTGRES_DB=BlazorWebAppMovies
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - blazor-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  blazor-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
