@@ -2,6 +2,7 @@
 using BlazorMongoDB.IService;
 using Microsoft.Extensions.Configuration;
 using MongoDB.Driver;
+using MongoDB.Driver.Core.Configuration;
 
 namespace BlazorMongoDB.Service
 {
@@ -13,19 +14,15 @@ namespace BlazorMongoDB.Service
 		
 		public StudentService(IConfiguration configuration) 
 		{
-			// Try to get from configuration first (supports MongoDB__ConnectionString format)
+			// Get connection string from configuration or environment variable
 			var connectionString = configuration["MongoDB:ConnectionString"];
-			
-			// If not found, try environment variable
 			if (string.IsNullOrEmpty(connectionString))
 			{
 				connectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING");
 			}
-			
-			// Fall back to default
 			if (string.IsNullOrEmpty(connectionString))
 			{
-				connectionString = "mongodb://127.0.0.1:27017/";
+				throw new InvalidOperationException("MongoDB connection string not configured. Set MongoDB__ConnectionString or MONGODB_CONNECTION_STRING.");
 			}
 			
 			var databaseName = configuration["MongoDB:DatabaseName"] 
@@ -35,12 +32,15 @@ namespace BlazorMongoDB.Service
 				?? Environment.GetEnvironmentVariable("MONGODB_COLLECTION_NAME") 
 				?? "Students";
 			
-			// Log for debugging (remove in production)
-			Console.WriteLine($"MongoDB Connection String: {connectionString?.Substring(0, Math.Min(20, connectionString.Length))}...");
-			Console.WriteLine($"MongoDB Database: {databaseName}");
-			Console.WriteLine($"MongoDB Collection: {collectionName}");
-				
-			_mongoClient = new MongoClient(connectionString);
+			// Configure MongoDB client settings with SSL/TLS settings for Atlas
+			var settings = MongoClientSettings.FromConnectionString(connectionString);
+			settings.SslSettings = new SslSettings
+			{
+				EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12
+			};
+			settings.ServerApi = new ServerApi(ServerApiVersion.V1);
+			
+			_mongoClient = new MongoClient(settings);
 			_database = _mongoClient.GetDatabase(databaseName);
 			_studentTable = _database.GetCollection<Student>(collectionName);
 		}
