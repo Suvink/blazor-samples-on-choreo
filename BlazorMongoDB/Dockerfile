@@ -2,6 +2,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
 WORKDIR /src
 
+# Create non-root user for security
+RUN groupadd -g 10014 choreo && \
+    useradd --no-create-home --uid 10014 --gid 10014 choreouser
+
 # Copy the project file and restore dependencies
 COPY BlazorMongoDB/BlazorMongoDB.csproj BlazorMongoDB/
 RUN dotnet restore BlazorMongoDB/BlazorMongoDB.csproj
@@ -27,6 +31,9 @@ EXPOSE 443
 
 # Copy the published application from the publish stage
 COPY --from=publish /app/publish .
+
+# Switch to non-root user
+USER 10014
 
 # Set the entry point for the application
 ENTRYPOINT ["dotnet", "BlazorMongoDB.dll"]
