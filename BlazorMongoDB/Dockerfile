@@ -26,7 +26,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS final
 WORKDIR /app
 
 # Expose the port the app runs on
-EXPOSE 80
+EXPOSE 8080
 EXPOSE 443
 
 # Copy the published application from the publish stage
