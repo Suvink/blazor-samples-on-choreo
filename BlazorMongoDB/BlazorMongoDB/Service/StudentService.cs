@@ -13,15 +13,32 @@ namespace BlazorMongoDB.Service
 		
 		public StudentService(IConfiguration configuration) 
 		{
-			var connectionString = configuration.GetValue<string>("MongoDB:ConnectionString") 
-				?? Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING") 
-				?? "mongodb://127.0.0.1:27017/";
-			var databaseName = configuration.GetValue<string>("MongoDB:DatabaseName") 
+			// Try to get from configuration first (supports MongoDB__ConnectionString format)
+			var connectionString = configuration["MongoDB:ConnectionString"];
+			
+			// If not found, try environment variable
+			if (string.IsNullOrEmpty(connectionString))
+			{
+				connectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING");
+			}
+			
+			// Fall back to default
+			if (string.IsNullOrEmpty(connectionString))
+			{
+				connectionString = "mongodb://127.0.0.1:27017/";
+			}
+			
+			var databaseName = configuration["MongoDB:DatabaseName"] 
 				?? Environment.GetEnvironmentVariable("MONGODB_DATABASE_NAME") 
 				?? "SchoolDB";
-			var collectionName = configuration.GetValue<string>("MongoDB:CollectionName") 
+			var collectionName = configuration["MongoDB:CollectionName"] 
 				?? Environment.GetEnvironmentVariable("MONGODB_COLLECTION_NAME") 
 				?? "Students";
+			
+			// Log for debugging (remove in production)
+			Console.WriteLine($"MongoDB Connection String: {connectionString?.Substring(0, Math.Min(20, connectionString.Length))}...");
+			Console.WriteLine($"MongoDB Database: {databaseName}");
+			Console.WriteLine($"MongoDB Collection: {collectionName}");
 				
 			_mongoClient = new MongoClient(connectionString);
 			_database = _mongoClient.GetDatabase(databaseName);
