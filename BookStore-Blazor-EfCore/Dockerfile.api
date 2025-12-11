@@ -2,6 +2,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build
 WORKDIR /src
 
+# Create non-root user for security
+RUN groupadd -g 10014 choreo && \
+    useradd --no-create-home --uid 10014 --gid 10014 choreouser
+
 # Copy solution and project files
 COPY *.sln ./
 COPY common.props ./
@@ -45,11 +49,18 @@ RUN dotnet dev-certs https -v -ep authserver.pfx -p ${CERT_PASSWORD}
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-preview AS runtime
 WORKDIR /app
 
+# Create non-root user for security
+RUN groupadd -g 10014 choreo && \
+    useradd --no-create-home --uid 10014 --gid 10014 choreouser
+
 # Copy published files
 COPY --from=build /app/publish .
 
 # Copy certificate
 COPY --from=cert-generator /certs/authserver.pfx .
+
+# Change ownership to non-root user
+RUN chown -R choreouser:choreo /app
 
 # Expose port
 EXPOSE 8080
@@ -57,5 +68,8 @@ EXPOSE 8080
 # Set environment
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
+
+# Switch to non-root user
+USER 10014
 
 ENTRYPOINT ["dotnet", "Acme.BookStore.HttpApi.Host.dll"]

@@ -2,6 +2,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build-api
 WORKDIR /src
 
+# Create non-root user for security
+RUN groupadd -g 10014 choreo && \
+    useradd --no-create-home --uid 10014 --gid 10014 choreouser
+
 # Copy solution and project files
 COPY *.sln ./
 COPY common.props ./
@@ -35,6 +39,10 @@ RUN dotnet publish -c Release -o /app/api/publish
 # Stage 2: Build Blazor
 FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build-blazor
 WORKDIR /src
+
+# Create non-root user for security
+RUN groupadd -g 10014 choreo && \
+    useradd --no-create-home --uid 10014 --gid 10014 choreouser
 
 # Copy solution and project files
 COPY *.sln ./
@@ -76,6 +84,10 @@ RUN apt-get update && apt-get install -y \
     supervisor \
     curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN groupadd -g 10014 choreo && \
+    useradd --no-create-home --uid 10014 --gid 10014 choreouser
 
 WORKDIR /app
 
@@ -201,7 +213,7 @@ RUN rm -f /etc/nginx/sites-enabled/default.conf
 COPY <<EOF /etc/supervisor/conf.d/supervisord.conf
 [supervisord]
 nodaemon=true
-user=root
+user=choreouser
 
 [program:nginx]
 command=/usr/sbin/nginx -g "daemon off;"
@@ -212,6 +224,7 @@ stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
+user=choreouser
 
 [program:api]
 command=/usr/bin/dotnet /app/api/Acme.BookStore.HttpApi.Host.dll
@@ -224,6 +237,7 @@ stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 environment=ASPNETCORE_URLS="http://0.0.0.0:5000",ASPNETCORE_ENVIRONMENT="Production"
+user=choreouser
 
 [program:blazor]
 command=/usr/bin/dotnet /app/blazor/Acme.BookStore.Blazor.dll
@@ -236,7 +250,15 @@ stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 environment=ASPNETCORE_URLS="http://0.0.0.0:5001",ASPNETCORE_ENVIRONMENT="Production"
+user=choreouser
 EOF
+
+# Set up permissions for nginx to run as non-root user
+RUN chown -R choreouser:choreo /app && \
+    chown -R choreouser:choreo /var/log/nginx && \
+    chown -R choreouser:choreo /var/lib/nginx && \
+    touch /run/nginx.pid && \
+    chown -R choreouser:choreo /run/nginx.pid
 
 # Expose port
 EXPOSE 8080
@@ -247,6 +269,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 
 # Set environment defaults
 ENV ASPNETCORE_ENVIRONMENT=Production
+
+# Switch to non-root user
+USER 10014
 
 # Start supervisor
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

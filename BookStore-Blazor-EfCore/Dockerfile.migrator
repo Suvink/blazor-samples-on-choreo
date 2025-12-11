@@ -2,6 +2,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build
 WORKDIR /src
 
+# Create non-root user for security
+RUN groupadd -g 10014 choreo && \
+    useradd --no-create-home --uid 10014 --gid 10014 choreouser
+
 # Copy solution and project files
 COPY *.sln ./
 COPY common.props ./
@@ -28,7 +32,17 @@ RUN dotnet publish -c Release -o /app/publish
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-preview AS runtime
 WORKDIR /app
 
+# Create non-root user for security
+RUN groupadd -g 10014 choreo && \
+    useradd --no-create-home --uid 10014 --gid 10014 choreouser
+
 # Copy published files
 COPY --from=build /app/publish .
+
+# Change ownership to non-root user
+RUN chown -R choreouser:choreo /app
+
+# Switch to non-root user
+USER 10014
 
 ENTRYPOINT ["dotnet", "Acme.BookStore.DbMigrator.dll"]
