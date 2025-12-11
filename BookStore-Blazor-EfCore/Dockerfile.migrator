@@ -1,0 +1,34 @@
+# Stage 1: Build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build
+WORKDIR /src
+
+# Copy solution and project files
+COPY *.sln ./
+COPY common.props ./
+COPY NuGet.Config ./
+COPY src/Acme.BookStore.Domain.Shared/*.csproj ./src/Acme.BookStore.Domain.Shared/
+COPY src/Acme.BookStore.Application.Contracts/*.csproj ./src/Acme.BookStore.Application.Contracts/
+COPY src/Acme.BookStore.Domain/*.csproj ./src/Acme.BookStore.Domain/
+COPY src/Acme.BookStore.EntityFrameworkCore/*.csproj ./src/Acme.BookStore.EntityFrameworkCore/
+COPY src/Acme.BookStore.MongoDB/*.csproj ./src/Acme.BookStore.MongoDB/
+COPY src/Acme.BookStore.DbMigrator/*.csproj ./src/Acme.BookStore.DbMigrator/
+
+# Restore dependencies
+RUN dotnet restore src/Acme.BookStore.DbMigrator/Acme.BookStore.DbMigrator.csproj
+
+# Copy source code
+COPY src/ ./src/
+
+# Build and publish
+WORKDIR /src/src/Acme.BookStore.DbMigrator
+RUN dotnet build -c Release -o /app/build
+RUN dotnet publish -c Release -o /app/publish
+
+# Stage 2: Runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-preview AS runtime
+WORKDIR /app
+
+# Copy published files
+COPY --from=build /app/publish .
+
+ENTRYPOINT ["dotnet", "Acme.BookStore.DbMigrator.dll"]

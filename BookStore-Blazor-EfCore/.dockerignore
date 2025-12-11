@@ -1,0 +1,17 @@
+**/.git
+**/.gitignore
+**/.vs
+**/.vscode
+**/*.*proj.user
+**/bin
+**/obj
+**/node_modules
+**/.DS_Store
+**/wwwroot/libs
+etc/
+test/
+*.md
+.env*
+docker-compose*.yml
+Dockerfile*
+certificates/

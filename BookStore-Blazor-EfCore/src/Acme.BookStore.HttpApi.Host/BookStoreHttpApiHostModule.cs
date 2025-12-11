@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Extensions.DependencyInjection;
 using OpenIddict.Validation.AspNetCore;
 using OpenIddict.Server.AspNetCore;
 using Acme.BookStore.EntityFrameworkCore;
+using Acme.BookStore.MongoDB;
 using Acme.BookStore.MultiTenancy;
 using Acme.BookStore.HealthChecks;
 using Microsoft.OpenApi.Models;
@@ -23,6 +24,7 @@ using Volo.Abp.Account;
 using Volo.Abp.Account.Web;
 using Volo.Abp.AspNetCore.MultiTenancy;
 using Volo.Abp.AspNetCore.Mvc;
+using Volo.Abp.AspNetCore.Mvc.Libs;
 using Volo.Abp.Autofac;
 using Volo.Abp.Localization;
 using Volo.Abp.Modularity;
@@ -50,6 +52,7 @@ namespace Acme.BookStore;
     typeof(AbpAspNetCoreMultiTenancyModule),
     typeof(BookStoreApplicationModule),
     typeof(BookStoreEntityFrameworkCoreModule),
+    typeof(BookStoreMongoDbModule),
     typeof(AbpAccountWebOpenIddictModule),
     typeof(AbpSwashbuckleModule),
     typeof(AbpAspNetCoreSerilogModule)
@@ -78,10 +81,11 @@ public class BookStoreHttpApiHostModule : AbpModule
                 options.AddDevelopmentEncryptionAndSigningCertificate = false;
             });
 
-            PreConfigure<OpenIddictServerBuilder>(serverBuilder =>
+            PreConfigure<OpenIddictServerBuilder>(builder =>
             {
-                serverBuilder.AddProductionEncryptionAndSigningCertificate("openiddict.pfx", configuration["AuthServer:CertificatePassPhrase"]!);
-                serverBuilder.SetIssuer(new Uri(configuration["AuthServer:Authority"]!));
+                builder.AddSigningCertificate(GetSigningCertificate(hostingEnvironment, configuration));
+                builder.AddEncryptionCertificate(GetSigningCertificate(hostingEnvironment, configuration));
+                builder.SetIssuer(new Uri(configuration["AuthServer:Authority"]!));
             });
         }
     }
@@ -110,9 +114,16 @@ public class BookStoreHttpApiHostModule : AbpModule
             });
         }
 
+        // Disable antiforgery for local development
+        context.Services.AddAntiforgery(options =>
+        {
+            options.SuppressXFrameOptionsHeader = true;
+        });
+
         ConfigureAuthentication(context);
         ConfigureUrls(configuration);
         ConfigureBundles();
+        ConfigureLibsCheck();
         ConfigureConventionalControllers();
         ConfigureHealthChecks(context);
         ConfigureSwagger(context, configuration);
@@ -140,23 +151,19 @@ public class BookStoreHttpApiHostModule : AbpModule
 
     private void ConfigureBundles()
     {
+        // Disable bundling for local development to avoid missing libs errors
         Configure<AbpBundlingOptions>(options =>
         {
-            options.StyleBundles.Configure(
-                LeptonXLiteThemeBundles.Styles.Global,
-                bundle =>
-                {
-                    bundle.AddFiles("/global-styles.css");
-                }
-            );
+            options.Mode = BundlingMode.None;
+        });
+    }
 
-            options.ScriptBundles.Configure(
-                LeptonXLiteThemeBundles.Scripts.Global,
-                bundle =>
-                {
-                    bundle.AddFiles("/global-scripts.js");
-                }
-            );
+    private void ConfigureLibsCheck()
+    {
+        // Disable libs check for API-only deployment (no client-side libraries needed)
+        Configure<AbpMvcLibsOptions>(options =>
+        {
+            options.CheckLibs = false;
         });
     }
 
@@ -169,10 +176,15 @@ public class BookStoreHttpApiHostModule : AbpModule
         {
             Configure<AbpVirtualFileSystemOptions>(options =>
             {
-                options.FileSets.ReplaceEmbeddedByPhysical<BookStoreDomainSharedModule>(Path.Combine(hostingEnvironment.ContentRootPath, $"..{Path.DirectorySeparatorChar}Acme.BookStore.Domain.Shared"));
-                options.FileSets.ReplaceEmbeddedByPhysical<BookStoreDomainModule>(Path.Combine(hostingEnvironment.ContentRootPath, $"..{Path.DirectorySeparatorChar}Acme.BookStore.Domain"));
-                options.FileSets.ReplaceEmbeddedByPhysical<BookStoreApplicationContractsModule>(Path.Combine(hostingEnvironment.ContentRootPath, $"..{Path.DirectorySeparatorChar}Acme.BookStore.Application.Contracts"));
-                options.FileSets.ReplaceEmbeddedByPhysical<BookStoreApplicationModule>(Path.Combine(hostingEnvironment.ContentRootPath, $"..{Path.DirectorySeparatorChar}Acme.BookStore.Application"));
+                // Only use physical files if the paths actually exist (local development, not Docker)
+                var domainSharedPath = Path.Combine(hostingEnvironment.ContentRootPath, $"..{Path.DirectorySeparatorChar}Acme.BookStore.Domain.Shared");
+                if (Directory.Exists(domainSharedPath))
+                {
+                    options.FileSets.ReplaceEmbeddedByPhysical<BookStoreDomainSharedModule>(domainSharedPath);
+                    options.FileSets.ReplaceEmbeddedByPhysical<BookStoreDomainModule>(Path.Combine(hostingEnvironment.ContentRootPath, $"..{Path.DirectorySeparatorChar}Acme.BookStore.Domain"));
+                    options.FileSets.ReplaceEmbeddedByPhysical<BookStoreApplicationContractsModule>(Path.Combine(hostingEnvironment.ContentRootPath, $"..{Path.DirectorySeparatorChar}Acme.BookStore.Application.Contracts"));
+                    options.FileSets.ReplaceEmbeddedByPhysical<BookStoreApplicationModule>(Path.Combine(hostingEnvironment.ContentRootPath, $"..{Path.DirectorySeparatorChar}Acme.BookStore.Application"));
+                }
             });
         }
     }
@@ -274,5 +286,19 @@ public class BookStoreHttpApiHostModule : AbpModule
         app.UseAuditing();
         app.UseAbpSerilogEnrichers();
         app.UseConfiguredEndpoints();
+    }
+
+    private X509Certificate2 GetSigningCertificate(IWebHostEnvironment hostingEnv, IConfiguration configuration)
+    {
+        var fileName = "authserver.pfx";
+        var passPhrase = "2D7AA457-5D33-48D6-936F-C48E5EF468ED";
+        var file = Path.Combine(hostingEnv.ContentRootPath, fileName);
+
+        if (!File.Exists(file))
+        {
+            throw new FileNotFoundException($"Signing Certificate couldn't found: {file}");
+        }
+
+        return new X509Certificate2(file, passPhrase);
     }
 }

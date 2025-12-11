@@ -272,3 +272,14 @@ src/Acme.BookStore.Blazor.Server.Tiered/Logs/*
 # IdentityServer temp files
 tempkey.rsa
 tempkey.jwk
+
+# Readmes
+CHOREO-DEPLOYMENT.md
+CHOREO-QUICKSTART.md
+CHOREO-ARCHITECTURE.md
+DEPLOYMENT.md
+generate-choreo-config.sh
+MONGODB-MIGRATION.md
+README-CHOREO.md
+README-DEPLOYMENT.md
+DOCKER-DEPLOYMENT-GUIDE.md
