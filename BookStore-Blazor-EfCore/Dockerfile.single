@@ -117,6 +117,8 @@ COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN chown -R choreouser:choreo /app && \
     chown -R choreouser:choreo /var/log/nginx && \
     chown -R choreouser:choreo /var/lib/nginx && \
+    chown -R choreouser:choreo /tmp && \
+    chmod -R 777 /tmp && \
     touch /run/nginx.pid && \
     chown -R choreouser:choreo /run/nginx.pid
 
