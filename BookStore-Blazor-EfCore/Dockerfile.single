@@ -154,12 +154,15 @@ COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY startup.sh /app/startup.sh
 RUN chmod +x /app/startup.sh
 
+# Create nginx temp directories in /tmp (writable location)
+RUN mkdir -p /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi /tmp/nginx_uwsgi /tmp/nginx_scgi && \
+    chmod -R 777 /tmp
+
 # Set up permissions for nginx to run as non-root user
 RUN chown -R choreouser:choreo /app && \
     chown -R choreouser:choreo /var/log/nginx && \
     chown -R choreouser:choreo /var/lib/nginx && \
     chown -R choreouser:choreo /tmp && \
-    chmod -R 777 /tmp && \
     touch /run/nginx.pid && \
     chown -R choreouser:choreo /run/nginx.pid
 
