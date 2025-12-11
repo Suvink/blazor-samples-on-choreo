@@ -1,0 +1,252 @@
+# Stage 1: Build API
+FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build-api
+WORKDIR /src
+
+# Copy solution and project files
+COPY *.sln ./
+COPY common.props ./
+COPY NuGet.Config ./
+COPY src/Acme.BookStore.Domain.Shared/*.csproj ./src/Acme.BookStore.Domain.Shared/
+COPY src/Acme.BookStore.Application.Contracts/*.csproj ./src/Acme.BookStore.Application.Contracts/
+COPY src/Acme.BookStore.Domain/*.csproj ./src/Acme.BookStore.Domain/
+COPY src/Acme.BookStore.Application/*.csproj ./src/Acme.BookStore.Application/
+COPY src/Acme.BookStore.EntityFrameworkCore/*.csproj ./src/Acme.BookStore.EntityFrameworkCore/
+COPY src/Acme.BookStore.MongoDB/*.csproj ./src/Acme.BookStore.MongoDB/
+COPY src/Acme.BookStore.HttpApi/*.csproj ./src/Acme.BookStore.HttpApi/
+COPY src/Acme.BookStore.HttpApi.Client/*.csproj ./src/Acme.BookStore.HttpApi.Client/
+COPY src/Acme.BookStore.HttpApi.Host/*.csproj ./src/Acme.BookStore.HttpApi.Host/
+
+# Restore API dependencies
+RUN dotnet restore src/Acme.BookStore.HttpApi.Host/Acme.BookStore.HttpApi.Host.csproj
+
+# Copy API source code
+COPY src/ ./src/
+
+# Install ABP CLI and libs for API
+RUN dotnet tool install -g Volo.Abp.Studio.Cli || dotnet tool update -g Volo.Abp.Studio.Cli
+ENV PATH="${PATH}:/root/.dotnet/tools"
+WORKDIR /src/src/Acme.BookStore.HttpApi.Host
+RUN abp install-libs || true
+
+# Build and publish API
+RUN dotnet build -c Release -o /app/api/build
+RUN dotnet publish -c Release -o /app/api/publish
+
+# Stage 2: Build Blazor
+FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build-blazor
+WORKDIR /src
+
+# Copy solution and project files
+COPY *.sln ./
+COPY common.props ./
+COPY NuGet.Config ./
+COPY src/Acme.BookStore.Domain.Shared/*.csproj ./src/Acme.BookStore.Domain.Shared/
+COPY src/Acme.BookStore.Application.Contracts/*.csproj ./src/Acme.BookStore.Application.Contracts/
+COPY src/Acme.BookStore.Blazor/*.csproj ./src/Acme.BookStore.Blazor/
+COPY src/Acme.BookStore.Blazor.Client/*.csproj ./src/Acme.BookStore.Blazor.Client/
+
+# Restore Blazor dependencies
+RUN dotnet restore src/Acme.BookStore.Blazor/Acme.BookStore.Blazor.csproj
+
+# Copy Blazor source code
+COPY src/ ./src/
+
+# Install ABP CLI and libs for Blazor
+RUN dotnet tool install -g Volo.Abp.Studio.Cli || dotnet tool update -g Volo.Abp.Studio.Cli
+ENV PATH="${PATH}:/root/.dotnet/tools"
+WORKDIR /src/src/Acme.BookStore.Blazor
+RUN abp install-libs || true
+
+# Build and publish Blazor
+RUN dotnet build -c Release -o /app/blazor/build
+RUN dotnet publish -c Release -o /app/blazor/publish
+
+# Stage 3: Generate certificate
+FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS cert-generator
+WORKDIR /certs
+ARG CERT_PASSWORD=2D7AA457-5D33-48D6-936F-C48E5EF468ED
+RUN dotnet dev-certs https -v -ep authserver.pfx -p ${CERT_PASSWORD}
+
+# Stage 4: Runtime with nginx reverse proxy
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-preview AS runtime
+
+# Install nginx and supervisor
+RUN apt-get update && apt-get install -y \
+    nginx \
+    supervisor \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy API published files
+COPY --from=build-api /app/api/publish ./api/
+
+# Copy Blazor published files
+COPY --from=build-blazor /app/blazor/publish ./blazor/
+
+# Copy certificate
+COPY --from=cert-generator /certs/authserver.pfx ./api/
+
+# Create nginx configuration
+RUN mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
+
+# Configure nginx as reverse proxy
+COPY <<EOF /etc/nginx/sites-available/default
+server {
+    listen 8080 default_server;
+    listen [::]:8080 default_server;
+    
+    server_name _;
+    
+    # Increase buffer sizes for large headers
+    large_client_header_buffers 4 32k;
+    
+    # API endpoints
+    location /api/ {
+        proxy_pass http://localhost:5000/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection keep-alive;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_buffering off;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+    
+    # Auth endpoints (OpenIddict)
+    location /connect/ {
+        proxy_pass http://localhost:5000/connect/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection keep-alive;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_buffering off;
+    }
+    
+    # Account endpoints (Login/Logout pages)
+    location /Account/ {
+        proxy_pass http://localhost:5000/Account/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection keep-alive;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_buffering off;
+    }
+    
+    # Swagger UI
+    location /swagger {
+        proxy_pass http://localhost:5000/swagger;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection keep-alive;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+    }
+    
+    # Health check
+    location /health-status {
+        proxy_pass http://localhost:5000/health-status;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        access_log off;
+    }
+    
+    # Blazor application (default)
+    location / {
+        proxy_pass http://localhost:5001/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection keep-alive;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_buffering off;
+    }
+    
+    # WebSocket support for Blazor
+    location /_blazor {
+        proxy_pass http://localhost:5001/_blazor;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+    }
+}
+EOF
+
+# Link nginx config
+RUN ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+RUN rm -f /etc/nginx/sites-enabled/default.conf
+
+# Configure supervisor to manage both processes
+COPY <<EOF /etc/supervisor/conf.d/supervisord.conf
+[supervisord]
+nodaemon=true
+user=root
+
+[program:nginx]
+command=/usr/sbin/nginx -g "daemon off;"
+autostart=true
+autorestart=true
+priority=10
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+
+[program:api]
+command=/usr/bin/dotnet /app/api/Acme.BookStore.HttpApi.Host.dll
+directory=/app/api
+autostart=true
+autorestart=true
+priority=20
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+environment=ASPNETCORE_URLS="http://0.0.0.0:5000",ASPNETCORE_ENVIRONMENT="Production"
+
+[program:blazor]
+command=/usr/bin/dotnet /app/blazor/Acme.BookStore.Blazor.dll
+directory=/app/blazor
+autostart=true
+autorestart=true
+priority=30
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+environment=ASPNETCORE_URLS="http://0.0.0.0:5001",ASPNETCORE_ENVIRONMENT="Production"
+EOF
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8080/health-status || exit 1
+
+# Set environment defaults
+ENV ASPNETCORE_ENVIRONMENT=Production
+
+# Start supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
