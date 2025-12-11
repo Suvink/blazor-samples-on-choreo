@@ -103,155 +103,15 @@ COPY --from=cert-generator /certs/authserver.pfx ./api/
 # Create nginx configuration
 RUN mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
 
-# Configure nginx as reverse proxy
-COPY <<EOF /etc/nginx/sites-available/default
-server {
-    listen 8080 default_server;
-    listen [::]:8080 default_server;
-    
-    server_name _;
-    
-    # Increase buffer sizes for large headers
-    large_client_header_buffers 4 32k;
-    
-    # API endpoints
-    location /api/ {
-        proxy_pass http://localhost:5000/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection keep-alive;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_buffering off;
-        proxy_read_timeout 300s;
-        proxy_connect_timeout 75s;
-    }
-    
-    # Auth endpoints (OpenIddict)
-    location /connect/ {
-        proxy_pass http://localhost:5000/connect/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection keep-alive;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_buffering off;
-    }
-    
-    # Account endpoints (Login/Logout pages)
-    location /Account/ {
-        proxy_pass http://localhost:5000/Account/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection keep-alive;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_buffering off;
-    }
-    
-    # Swagger UI
-    location /swagger {
-        proxy_pass http://localhost:5000/swagger;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection keep-alive;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-    }
-    
-    # Health check
-    location /health-status {
-        proxy_pass http://localhost:5000/health-status;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        access_log off;
-    }
-    
-    # Blazor application (default)
-    location / {
-        proxy_pass http://localhost:5001/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection keep-alive;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_buffering off;
-    }
-    
-    # WebSocket support for Blazor
-    location /_blazor {
-        proxy_pass http://localhost:5001/_blazor;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-    }
-}
-EOF
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/sites-available/default
 
 # Link nginx config
 RUN ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 RUN rm -f /etc/nginx/sites-enabled/default.conf
 
-# Configure supervisor to manage both processes
-COPY <<EOF /etc/supervisor/conf.d/supervisord.conf
-[supervisord]
-nodaemon=true
-user=choreouser
-
-[program:nginx]
-command=/usr/sbin/nginx -g "daemon off;"
-autostart=true
-autorestart=true
-priority=10
-stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
-stderr_logfile_maxbytes=0
-user=choreouser
-
-[program:api]
-command=/usr/bin/dotnet /app/api/Acme.BookStore.HttpApi.Host.dll
-directory=/app/api
-autostart=true
-autorestart=true
-priority=20
-stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
-stderr_logfile_maxbytes=0
-environment=ASPNETCORE_URLS="http://0.0.0.0:5000",ASPNETCORE_ENVIRONMENT="Production"
-user=choreouser
-
-[program:blazor]
-command=/usr/bin/dotnet /app/blazor/Acme.BookStore.Blazor.dll
-directory=/app/blazor
-autostart=true
-autorestart=true
-priority=30
-stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
-stderr_logfile_maxbytes=0
-environment=ASPNETCORE_URLS="http://0.0.0.0:5001",ASPNETCORE_ENVIRONMENT="Production"
-user=choreouser
-EOF
+# Copy supervisor configuration
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Set up permissions for nginx to run as non-root user
 RUN chown -R choreouser:choreo /app && \
