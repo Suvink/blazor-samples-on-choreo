@@ -254,8 +254,23 @@ public class BookStoreHttpApiHostModule : AbpModule
     {
         var app = context.GetApplicationBuilder();
         var env = context.GetEnvironment();
+        var configuration = context.GetConfiguration();
 
+        // Apply forwarded headers FIRST
         app.UseForwardedHeaders();
+        
+        // Add middleware to ensure OpenIddict uses the configured authority for endpoint URLs
+        app.Use(async (httpContext, next) =>
+        {
+            var authority = configuration["AuthServer:Authority"];
+            if (!string.IsNullOrEmpty(authority))
+            {
+                var authorityUri = new Uri(authority);
+                httpContext.Request.Scheme = authorityUri.Scheme;
+                httpContext.Request.Host = new HostString(authorityUri.Host, authorityUri.Port);
+            }
+            await next();
+        });
 
         if (env.IsDevelopment())
         {
