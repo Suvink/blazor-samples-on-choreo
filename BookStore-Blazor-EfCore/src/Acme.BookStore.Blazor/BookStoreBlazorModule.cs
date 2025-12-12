@@ -66,7 +66,8 @@ public class BookStoreBlazorModule : AbpModule
             app.UseHsts();
         }
 
-        app.UseHttpsRedirection();
+        // Skip HTTPS redirection - handled by nginx/Choreo ingress
+        // app.UseHttpsRedirection();
         app.UseRouting();
         app.MapAbpStaticAssets();
         app.UseAntiforgery();
