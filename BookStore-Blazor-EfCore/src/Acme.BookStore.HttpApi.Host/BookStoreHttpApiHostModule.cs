@@ -74,6 +74,16 @@ public class BookStoreHttpApiHostModule : AbpModule
             });
         });
 
+        // Always set the issuer from configuration (for both dev and prod)
+        var issuerUrl = configuration["AuthServer:Authority"];
+        if (!string.IsNullOrEmpty(issuerUrl))
+        {
+            PreConfigure<OpenIddictServerBuilder>(serverBuilder =>
+            {
+                serverBuilder.SetIssuer(new Uri(issuerUrl));
+            });
+        }
+
         if (!hostingEnvironment.IsDevelopment())
         {
             PreConfigure<AbpOpenIddictAspNetCoreOptions>(options =>
@@ -85,7 +95,6 @@ public class BookStoreHttpApiHostModule : AbpModule
             {
                 builder.AddSigningCertificate(GetSigningCertificate(hostingEnvironment, configuration));
                 builder.AddEncryptionCertificate(GetSigningCertificate(hostingEnvironment, configuration));
-                builder.SetIssuer(new Uri(configuration["AuthServer:Authority"]!));
             });
         }
     }
